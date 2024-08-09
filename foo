@@ -1,1 +1,291 @@
-foo
+package main
+
+import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
+const (
+	uploadDir     = "uploads"
+	encryptionKey = "your_encryption_key_here"
+)
+
+type uploadInfo struct {
+	UploadID   string
+	Parts      map[int]string
+	TotalParts int
+}
+
+var uploads = make(map[string]*uploadInfo)
+
+func initUploadHandler(w http.ResponseWriter, r *http.Request) {
+	// 生成新的 uploadID
+	uploadID := generateUploadID()
+
+	// 创建新的上传信息
+	uploads[uploadID] = &uploadInfo{
+		UploadID:   uploadID,
+		Parts:      make(map[int]string),
+		TotalParts: 0,
+	}
+
+	// 返回加密后的 uploadID
+	encryptedUploadID := encryptUploadID(uploadID)
+	fmt.Fprintf(w, `{"encryptedUploadId": "%s"}`, encryptedUploadID)
+}
+
+func uploadPartHandler(w http.ResponseWriter, r *http.Request) {
+	encryptedUploadID := r.URL.Path[len("/upload/"):]
+	encryptedUploadID = strings.TrimSuffix(encryptedUploadID, "/part/")
+	partNumber, _ := strconv.Atoi(r.URL.Path[len("/upload/"+encryptedUploadID+"/part/"):])
+
+	// 验证 encryptedUploadID 的合法性
+	uploadID := decryptUploadID(encryptedUploadID)
+	if _, ok := uploads[uploadID]; !ok {
+		http.Error(w, "Invalid uploadId", http.StatusBadRequest)
+		return
+	}
+
+	// 保存分块数据
+	file, err := os.Create(filepath.Join(uploadDir, uploadID, fmt.Sprintf("part_%d", partNumber)))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, r.Body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 更新上传信息
+	uploads[uploadID].Parts[partNumber] = file.Name()
+	uploads[uploadID].TotalParts++
+
+	// 返回 ETag
+	fmt.Fprintf(w, `{"etag": "%x"}`, partNumber)
+}
+
+func completeUploadHandler(w http.ResponseWriter, r *http.Request) {
+	encryptedUploadID := r.URL.Path[len("/upload/"):]
+	encryptedUploadID = strings.TrimSuffix(encryptedUploadID, "/complete")
+
+	// 验证 encryptedUploadID 的合法性
+	uploadID := decryptUploadID(encryptedUploadID)
+	if _, ok := uploads[uploadID]; !ok {
+		http.Error(w, "Invalid uploadId", http.StatusBadRequest)
+		return
+	}
+
+	// 合并分块
+	err := mergeUploadedParts(uploadID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 删除临时文件
+	os.RemoveAll(filepath.Join(uploadDir, uploadID))
+
+	// 返回上传成功响应
+	fmt.Fprintf(w, `{"message": "Upload completed successfully"}`)
+}
+
+func generateUploadID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func encryptUploadID(uploadID string) string {
+	block, err := aes.NewCipher([]byte(encryptionKey))
+	if err != nil {
+		panic(err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		panic(err)
+	}
+
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		panic(err)
+	}
+
+	ciphertext := gcm.Seal(nonce, nonce, []byte(uploadID), nil)
+	return hex.EncodeToString(ciphertext)
+}
+
+func decryptUploadID(encryptedUploadID string) string {
+	ciphertext, err := hex.DecodeString(encryptedUploadID)
+	if err != nil {
+		panic(err)
+	}
+
+	block, err := aes.NewCipher([]byte(encryptionKey))
+	if err != nil {
+		panic(err)
+	}
+
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		panic(err)
+	}
+
+	nonceSize := gcm.NonceSize()
+	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
+
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(plaintext)
+}
+
+func mergeUploadedParts(uploadID string) error {
+	// 创建输出文件
+	outFile, err := os.Create(filepath.Join(uploadDir, uploadID+".uploaded"))
+	if err != nil {
+		return err
+	}
+	defer outFile.Close()
+
+	// 合并分块
+	for i := 1; i <= uploads[uploadID].TotalParts; i++ {
+		partFile, err := os.Open(uploads[uploadID].Parts[i])
+		if err != nil {
+			return err
+		}
+		defer partFile.Close()
+
+		_, err = io.Copy(outFile, partFile)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func main() {
+	http.HandleFunc("/upload/init", initUploadHandler)
+	http.HandleFunc("/upload/", uploadPartHandler)
+	http.HandleFunc("/upload/*/complete", completeUploadHandler)
+	http.ListenAndServe(":8080", nil)
+}
+
+package lib
+
+import (
+	"bufio"
+	"bytes"
+	"crypto/tls"
+	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
+	"io"
+	"log"
+	"net/http"
+	"os"
+)
+
+func S3() {
+	// 设置 Minio 服务器的访问凭证
+	endpoint := "http://10.249.106.27:9000"
+	accessKeyID := "dcloud"
+	secretAccessKey := "Dcloud123"
+	token := ""
+	ragion := "bj"
+	bucketName := "dcloud"
+	key := "key"
+	cr := credentials.NewStaticCredentials(accessKeyID, secretAccessKey, token)
+	sess, err := session.NewSessionWithOptions(session.Options{
+		Config: aws.Config{
+			Endpoint:         aws.String(endpoint),
+			Region:           aws.String(ragion),
+			LogLevel:         aws.LogLevel(aws.LogDebugWithSigning),
+			S3ForcePathStyle: aws.Bool(true),
+			Credentials:      cr, // 若为开放bucket，则无需填写此参数
+			HTTPClient:       &http.Client{Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}},
+		},
+	})
+	if err != nil {
+		log.Fatalln("NewSessionWithOptions err", err)
+	}
+	svc := s3.New(sess)
+
+	input := &s3.CreateMultipartUploadInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(key),
+	}
+	resp, err := svc.CreateMultipartUpload(input)
+	if err != nil {
+		log.Fatalln("CreateMultipartUpload err", err)
+	}
+	objectName := "hello-world_1.txt"
+	filePath := "D:\\Workspace\\atic\\test\\hello-world_1.txt"
+	fp, err := os.Open(filePath)
+
+	defer fp.Close()
+
+	uploadId := resp.UploadId
+	reader := bufio.NewReader(fp)
+	blockSize := int64(10 * 1024 * 1024) // 分片大小
+	buf := make([]byte, blockSize)
+	partNum := int64(0)
+	var completes []*s3.CompletedPart
+
+	for {
+		n, err := reader.Read(buf)
+		if err == io.EOF {
+			break
+		}
+		if int64(n) != blockSize {
+			data := buf[0:n]
+			buf = data
+		}
+
+		partNum++
+		output, err := svc.UploadPart(&s3.UploadPartInput{
+			Bucket:        aws.String(bucketName),
+			Key:           aws.String(key),
+			PartNumber:    aws.Int64(partNum),   // 每次的序号唯一且递增
+			UploadId:      uploadId,             // 创建context时返回的id
+			Body:          bytes.NewReader(buf), // 数据内容
+			ContentLength: aws.Int64(int64(n)),  // 数据长度
+		})
+		if err != nil {
+			log.Fatalln("UploadPart err", err)
+		}
+
+		c := s3.CompletedPart{
+			ETag:       output.ETag,        // 上传分片时返回的Etag
+			PartNumber: aws.Int64(partNum), // Etag对应的PartNumber
+		}
+		completes = append(completes, &c)
+	}
+	cinput := &s3.CompleteMultipartUploadInput{
+		Bucket:          aws.String(bucketName),
+		Key:             aws.String(objectName),
+		UploadId:        uploadId,
+		MultipartUpload: &s3.CompletedMultipartUpload{Parts: completes},
+	}
+	res, err := svc.CompleteMultipartUpload(cinput)
+	fmt.Printf("Successfully uploaded %s to %s\n", objectName, bucketName)
+	fmt.Printf("res %+v\n", res)
+}
