@@ -1,0 +1,59 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - core.dcloud.io
+  resources:
+  - exportimages
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.dcloud.io
+  resources:
+  - exportimages/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.dcloud.io
+  resources:
+  - exportimages/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - core.dcloud.io
+  resources:
+  - imagedists
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - core.dcloud.io
+  resources:
+  - imagedists/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - core.dcloud.io
+  resources:
+  - imagedists/status
+  verbs:
+  - get
+  - patch
+  - update
