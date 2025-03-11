@@ -64,7 +64,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
-	"sync"
+	"test/disignpattern"
 )
 
 // Prize 奖品结构体
@@ -110,49 +110,41 @@ func Lottery(prizes []Prize) (Prize, error) {
 }
 
 func main() {
-	// 示例奖品配置（概率值可自由设置，自动计算比例）
-	prizes := []Prize{
-		{1, "一等奖", 1},   // 1/(1+5+20+30) ≈ 1.79%
-		{2, "二等奖", 5},   // 5/56 ≈ 8.93%
-		{3, "三等奖", 10},  // 10/56 ≈ 17.86%
-		{4, "谢谢参与", 40}, // 40/56 ≈ 71.43%
+	for i := 0; i < 10; i++ {
+		s := disignpattern.GetSingleInstance()
+		fmt.Println(s)
 	}
+
+	// 示例奖品配置（概率值可自由设置，自动计算比例）
+	// prizes := []Prize{
+	// 	{1, "一等奖", 1},   // 1/(1+5+20+30) ≈ 1.79%
+	// 	{2, "二等奖", 5},   // 5/56 ≈ 8.93%
+	// 	{3, "三等奖", 10},  // 10/56 ≈ 17.86%
+	// 	{4, "谢谢参与", 40}, // 40/56 ≈ 71.43%
+	// }
 
 	// 进行100万次抽奖测试概率分布
-	result := make(map[int]int)
-	totalTimes := 1000000
+	// result := make(map[int]int)
+	// totalTimes := 1000000
 
-	for i := 0; i < totalTimes; i++ {
-		prize, err := Lottery(prizes)
-		if err != nil {
-			panic(err)
-		}
-		result[prize.ID]++
-	}
+	// for i := 0; i < totalTimes; i++ {
+	// 	prize, err := Lottery(prizes)
+	// 	if err != nil {
+	// 		panic(err)
+	// 	}
+	// 	result[prize.ID]++
+	// }
 
 	// 打印统计结果
-	fmt.Println("抽奖结果统计：")
-	totalProb := 0.0
-	for _, p := range prizes {
-		prob := float64(result[p.ID]) / float64(totalTimes) * 100
-		totalProb += prob
-		fmt.Printf("%s(ID:%d) 理论概率：%.2f%%，实际概率：%.2f%%\n",
-			p.Name, p.ID,
-			p.Probability/56*100,
-			prob)
-	}
-	fmt.Printf("总概率：%.2f%%\n", totalProb)
-}
-
-type Singleton struct {
-}
-
-var once sync.Once
-var s *Singleton
-
-func GetSingle() *Singleton {
-	once.Do(func() {
-		s = &Singleton{}
-	})
-	return s
+	// fmt.Println("抽奖结果统计：")
+	// totalProb := 0.0
+	// for _, p := range prizes {
+	// 	prob := float64(result[p.ID]) / float64(totalTimes) * 100
+	// 	totalProb += prob
+	// 	fmt.Printf("%s(ID:%d) 理论概率：%.2f%%，实际概率：%.2f%%\n",
+	// 		p.Name, p.ID,
+	// 		p.Probability/56*100,
+	// 		prob)
+	// }
+	// fmt.Printf("总概率：%.2f%%\n", totalProb)
 }
