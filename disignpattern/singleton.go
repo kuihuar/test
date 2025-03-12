@@ -23,3 +23,10 @@ func GetSingleInstance() *Singleton {
 	})
 	return instance
 }
+
+func SingleExample() {
+	for i := 0; i < 10; i++ {
+		s := GetSingleInstance()
+		fmt.Println(s)
+	}
+}

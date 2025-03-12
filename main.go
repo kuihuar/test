@@ -64,6 +64,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"test/algorithm"
 	"test/disignpattern"
 )
 
@@ -110,10 +111,10 @@ func Lottery(prizes []Prize) (Prize, error) {
 }
 
 func main() {
-	for i := 0; i < 10; i++ {
-		s := disignpattern.GetSingleInstance()
-		fmt.Println(s)
-	}
+	// disignpattern.SingleExample()
+	// disignpattern.StragegyExample()
+	disignpattern.ProxyExample()
+	algorithm.SortExample()
 
 	// 示例奖品配置（概率值可自由设置，自动计算比例）
 	// prizes := []Prize{
