@@ -91,12 +91,14 @@ func insertionSort(arr []int) {
 		// 从已排序部分的最后一个元素开始向前比较，如果当前元素大于 key，则将其后移一位
 		// 内层循环会从已排序部分的最后一个元素（索引为 j）开始，向前依次比较每个元素和待插入元素 key 的大小。如果 arr[j] 大于 key，
 		// 就把 arr[j] 向后移动一位（即 arr[j+1] = arr[j]），然后将 j 减 1，继续比较前一个元素
-		for j >= 0 && arr[j] > key {
+		for ; j >= 0 && arr[j] > key; j-- {
 			arr[j+1] = arr[j]
-			j--
+			// j--
+			fmt.Printf("arrrrr11:%+v\ti:%d\tj:%d\tkey:%d\n", arr, i, j, key)
 		}
 		// 找到合适的位置后，将 key 插入到该位置
 		arr[j+1] = key
+		fmt.Printf("arrrrr22:%+v\n", arr)
 	}
 
 }
@@ -150,8 +152,10 @@ func selectionSort(arr []int) {
 				minIdx = j
 			}
 		}
+		fmt.Printf("第%d轮前:arr:%+v,minIdx:%d \n", i, arr, minIdx)
 		// 步骤 7: 将最小元素与当前索引 i 对应的元素交换位置
 		arr[i], arr[minIdx] = arr[minIdx], arr[i]
+		fmt.Printf("第%d轮后:arr:%+v,minIdx:%d \n", i, arr, minIdx)
 		// 内层循环结束后，已经找到了未排序部分中的最小元素的索引 minIdx。
 		// 将该最小元素与当前索引 i 对应的元素交换位置，这样就将最小元素放到了已排序部分的末尾。
 	}
@@ -374,10 +378,14 @@ func heapSort(arr []int) {
 	// 第一步：构建最大堆：
 	// n 是数组的长度。
 	// 从最后一个非叶子节点开始（即 n/2 - 1），依次向前调用 heapify 函数，将每个子树调整为最大堆。
+	// 特点： 每个节点的值都大于或等于其子节点的值
+	// 所以处理的是最后一个非叶子节点及其之后的所有节点，这些节点都是叶子节点或者只有一个子节点的节点，不需要再进行 heapify 操作。
 	// 最后一个非叶子节点的索引是 n/2 - 1，因为对于一个完全二叉树，非叶子节点的索引范围是从 0 到 n/2 - 1。
 	for i := n/2 - 1; i >= 0; i-- {
+		fmt.Println("heapSort n:", n, "i:", i)
 		heapify(arr, n, i)
 	}
+	fmt.Printf("heapSort finished arr: %+v\n", arr)
 	// 第二步：交换元素并调整堆：
 	// 将堆顶元素（最大值，即 arr[0]）与当前堆的最后一个元素（arr[i]）交换。
 	// 交换后，堆的性质可能被破坏，因此需要调用 heapify 函数将剩余的元素（长度为 i）重新调整为最大堆。
@@ -385,12 +393,18 @@ func heapSort(arr []int) {
 		arr[0], arr[i] = arr[i], arr[0]
 		heapify(arr, i, 0)
 	}
+	fmt.Printf("heapSort optimized arr: %+v\n", arr)
 }
 
 func heapify(arr []int, n, i int) {
+	fmt.Println("  heapify n:", n, "i:", i)
+	// 1. 初始化最大值索引：
 	largest := i
+	// 2. 计算左右子节点的索引：
 	left, right := 2*i+1, 2*i+2
 	// 找到左子节点和右子节点中值最大的节点
+
+	// 3. 比较左右子节点和当前节点的值：
 	if left < n && arr[left] > arr[largest] {
 		largest = left
 	}
@@ -410,17 +424,21 @@ func heapify(arr []int, n, i int) {
 // 希尔排序（Shell Sort）是插入排序的一种更高效的改进版本，也称为缩小增量排序。
 // 它的基本思想是将原始数据分成多个子序列来进行插入排序，随着增量逐渐减小，子序列的长度逐渐增加，整个序列会变得越来越接近有序，
 // 最后当增量为 1 时，就相当于进行一次普通的插入排序，但此时数据已经基本有序，插入排序的效率会大大提高。
+// https://juejin.cn/post/6973862597737054244
 func shellSort(arr []int) {
 	// 1. 获取数组长度
 	n := len(arr)
+	fmt.Printf("shellSort length: %d\n", n)
 	// 2. 外层循环：控制增量 gap
 	// 初始化增量 gap 为数组长度的一半，这是希尔排序的初始增量设置。
 	// 每次循环将 gap 除以 2，不断缩小增量，直到 gap 为 0 时停止循环
 	for gap := n / 2; gap > 0; gap /= 2 {
+		fmt.Printf("out loop gap:%d\n", gap)
 		// 3. 中层循环：遍历每个子序列
 		// 从第 gap 个元素开始遍历数组，对于每个元素，将其作为当前要插入的元素
 		// 这里的 i 表示当前正在处理的元素的索引，从 gap 开始是因为要将数组分成多个子序列进行处理
 		for i := gap; i < n; i++ {
+			fmt.Printf("\t\tmiddle loop i: %d\n", i)
 			// 4. 保存当前元素
 			// 将当前要插入的元素 arr[i] 保存到临时变量 temp 中，方便后续移动元素时不会丢失该元素的值。
 			temp := arr[i]
@@ -451,7 +469,8 @@ func shellSort(arr []int) {
 func SortExample() {
 	arr := []int{64, 34, 25, 12, 22, 11, 90}
 	// arr = []int{9, 5, 7, 1, 3, 8, 4, 6, 2}
-	// fmt.Printf("array= %+v\n", arr)
-	shellSort(arr)
+	// arr = []int{64, 34, 25, 12, 22, 11, 90, 9, 5, 7, 1, 3, 8, 4, 6, 2}
+	fmt.Printf("array= %+v\n", arr)
+	heapSort(arr)
 	fmt.Printf("Sorted array=%+v\n", arr)
 }
